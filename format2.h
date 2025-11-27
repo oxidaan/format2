@@ -150,12 +150,14 @@ namespace priv
     }
 
 
-    thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
-                                            // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
-    thread_local bool manip_found = false;  // keep together with stream
+    namespace
+    {
+        thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
+                                                // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
+        thread_local bool manip_found = false;  // keep together with stream
+    }
 
 }           // priv
-
 
 
 
