@@ -6,6 +6,7 @@
 #include <sstream>                      // std::stringstream
 #include <iomanip>                      // manipulators
 #include <array>
+#include <charconv>                     // to_chars
 
 namespace format2
 {
@@ -75,6 +76,11 @@ namespace priv
         std::same_as<const T&, const decltype(std::setbase(0))&>;
 
 
+    // Can it use std::to_chars?
+    template <class T>
+    concept CanUseToChars = requires(T v, char* c) { std::to_chars(c, c, v); } ;
+
+
 
     // It is a manipulator. Handle it plus make sure p_manip_found is true; do not increase index.
     template <class TData> requires(IsManipulator<TData>)
@@ -105,15 +111,21 @@ namespace priv
     }
 
 
-    // Can use std::to_string on TData (when no manipulor was used).
+
+
+    // Can use to_chars on TData (when no manipulator was used).
     // Performance.
-    // dont use std::to_string on char -> will print as number.
-    template <class TData> requires (!std::same_as<TData, char>) && requires(TData a){std::to_string(a);}
+    // dont use to_chars on char -> will print as number.
+    template <class TData> requires (!std::same_as<TData, char>) && CanUseToChars<TData>
     inline void ToFmtString(std::stringstream& p_stream, std::string* p_to_what, unsigned& p_index, bool& p_manip_found, const TData &p_data)
     {
         if (!p_manip_found)
         {
-            p_to_what[p_index] = std::to_string(p_data);
+            char buffer[64];
+            auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), p_data);
+            *ptr = 0;       // zero-terminate to_chars doesn't do that
+            p_to_what[p_index] = buffer;
+            // OR: p_to_what[p_index] = std::string(buffer, ptr);
         }
         else
         {
@@ -124,14 +136,13 @@ namespace priv
         p_index++;
     }
 
-
-    // It is not a manipulator, not already a string-like and can not use std::to_string.
+    // It is not a manipulator, not already a string-like and can not use to_chars.
     // Can only try streaming as last resort then.
     template <class TData> requires(
         !IsManipulator<TData> &&
         !StringLike<TData> &&
-        (std::same_as<TData, char> || !requires(TData a) { std::to_string(a); }))
-        void ToFmtString(std::stringstream& p_stream, std::string* p_to_what, unsigned& p_index, bool&, const TData& p_data)
+        (std::same_as<TData, char> || !CanUseToChars<TData>))
+    void ToFmtString(std::stringstream& p_stream, std::string* p_to_what, unsigned& p_index, bool&, const TData& p_data)
     {
         p_stream.str("");       // makes result empty but keeps manipulators
         p_stream << p_data;
@@ -142,13 +153,26 @@ namespace priv
 
 
 
+// TODO @DEBUG
+inline bool has_hex_set(std::ios_base& s)
+{
+    return (s.flags() & std::ios::basefield) == std::ios::hex;
+}
+
+thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
+                                        // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
+thread_local bool manip_found = false;  // keep together with stream
+
 template <typename ... TParams>
 [[nodiscard]]
 std::string Format(std::string p_format, TParams && ... p_params)
 {
-    std::stringstream ss;
     unsigned index = 0;
-    bool manip_found = false;
+    if(manip_found)
+    {
+        ss = std::stringstream{};       // need to reset manipulators (this is slow)
+        manip_found = false;
+    }
     std::array<std::string, sizeof ... (p_params)> params;
     ((priv::ToFmtString(ss, params.data(), index, manip_found, std::forward<TParams>(p_params))), ...);
 
