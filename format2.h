@@ -149,29 +149,30 @@ namespace priv
         p_to_what[p_index++] = p_stream.str();
     }
 
+
+    thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
+                                            // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
+    thread_local bool manip_found = false;  // keep together with stream
+
 }           // priv
 
 
 
-thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
-                                        // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
-thread_local bool manip_found = false;  // keep together with stream
 
 template <typename ... TParams>
 [[nodiscard]]
 std::string Format(std::string p_format, TParams && ... p_params)
 {
     unsigned index = 0;
-    if(manip_found)
+    if(priv::manip_found)
     {
-        ss = std::stringstream{};       // need to reset manipulators (this is slow)
-        manip_found = false;
+        priv::ss = std::stringstream{};       // need to reset manipulators (this is slow)
+        priv::manip_found = false;
     }
     std::array<std::string, sizeof ... (p_params)> params;
-    ((priv::ToFmtString(ss, params.data(), index, manip_found, std::forward<TParams>(p_params))), ...);
+    ((priv::ToFmtString(priv::ss, params.data(), index, priv::manip_found, std::forward<TParams>(p_params))), ...);
 
     priv::DoParameterReplace(p_format, index, params.data());
-    (void)manip_found;
     return p_format;
 }
 
