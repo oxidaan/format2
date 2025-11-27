@@ -153,12 +153,6 @@ namespace priv
 
 
 
-// TODO @DEBUG
-inline bool has_hex_set(std::ios_base& s)
-{
-    return (s.flags() & std::ios::basefield) == std::ios::hex;
-}
-
 thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
                                         // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
 thread_local bool manip_found = false;  // keep together with stream
