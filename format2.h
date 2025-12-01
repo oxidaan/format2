@@ -111,11 +111,9 @@ namespace priv
     }
 
 
-
-
-    // Can use to_chars on TData (when no manipulator was used).
+    // Can use std::to_chars on TData (when no manipulator was used).
     // Performance.
-    // dont use to_chars on char -> will print as number.
+    // dont use std::to_chars on char -> will print as number.
     template <class TData> requires (!std::same_as<TData, char>) && CanUseToChars<TData>
     inline void ToFmtString(std::stringstream& p_stream, std::string* p_to_what, unsigned& p_index, bool& p_manip_found, const TData &p_data)
     {
@@ -136,7 +134,8 @@ namespace priv
         p_index++;
     }
 
-    // It is not a manipulator, not already a string-like and can not use to_chars.
+
+    // It is not a manipulator, not already a string-like and can not use std::to_chars.
     // Can only try streaming as last resort then.
     template <class TData> requires(
         !IsManipulator<TData> &&
@@ -150,11 +149,27 @@ namespace priv
     }
 
 
-    namespace
+
+    inline void ResetManipulators(std::stringstream &p_stream)
     {
-        thread_local std::stringstream ss;      // thread_local(=static) makes it twice as fast,
-                                                // Note when inside function below is stored multiple times (template!) (avoid memory overhead)
-        thread_local bool manip_found = false;  // keep together with stream
+        p_stream.flags(std::ios::fmtflags(0));    // reset all flags
+        p_stream.setf(std::ios::dec, std::ios::basefield);  // default numeric base
+        p_stream.setf(std::ios::fmtflags(0), std::ios::floatfield); // unset floatfield (default)
+        p_stream.width(0);                // default
+        p_stream.precision(6);            // default
+        p_stream.fill(' ');               // default
+    }
+
+    inline std::pair<std::stringstream &, bool &> GetStringStream()
+    {
+        thread_local bool manip_found = false;      // thread_local (= static) makes it 2x faster
+        thread_local std::stringstream ss;      // thread_local (= static) makes it 2x faster
+        if(manip_found)
+        {
+            ResetManipulators(ss);
+            manip_found = false;
+        }
+        return {ss, manip_found};
     }
 
 }           // priv
@@ -166,13 +181,9 @@ template <typename ... TParams>
 std::string Format(std::string p_format, TParams && ... p_params)
 {
     unsigned index = 0;
-    if(priv::manip_found)
-    {
-        priv::ss = std::stringstream{};       // need to reset manipulators (this is slow)
-        priv::manip_found = false;
-    }
+    auto [ ss, manip_found ] = priv::GetStringStream();
     std::array<std::string, sizeof ... (p_params)> params;
-    ((priv::ToFmtString(priv::ss, params.data(), index, priv::manip_found, std::forward<TParams>(p_params))), ...);
+    ((priv::ToFmtString(ss, params.data(), index, manip_found, std::forward<TParams>(p_params))), ...);
 
     priv::DoParameterReplace(p_format, index, params.data());
     return p_format;
