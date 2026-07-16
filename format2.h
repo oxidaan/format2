@@ -73,6 +73,7 @@ namespace priv
         std::same_as<const T&, const decltype(std::setw(0))&> ||
         std::same_as<const T&, const decltype(std::setprecision(0))&> ||
         std::same_as<const T&, const decltype(std::setfill(0))&>  ||
+        std::same_as<const T&, const decltype(std::setfill('0'))&>  ||
         std::same_as<const T&, const decltype(std::setbase(0))&>;
 
 
