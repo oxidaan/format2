@@ -14,9 +14,9 @@ namespace format2
 namespace priv
 {
 
-    // In format string a single parameter as given by index.
-    // Eg index = 3: replace %3 with p_to.
-    // Or replace the first found %0 with p_to, but not when its a manipulator.
+    // In format string replace parameters.
+    // Eg index = 3: replace %3 with p_params[2].
+    // Or replace the first found %0 with p_params, but not when its a manipulator.
     // Note: format string cannot use %10, %11 etc, will then first replace %1.
     inline void DoParameterReplace(std::string& p_format, int p_num_params, const std::string* p_params)
     {
